@@ -13,7 +13,7 @@ from agents.operations_center import analyze_operations, summarize_portfolio, pr
 APP_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_DIR))
 
-from agents.planner import create_plan
+from agents.workflow_graph import run_planning_workflow
 from database import (initialize_database,save_plan,get_recent_plans,get_task_tracking,update_task_tracking,get_plan_progress ,get_execution_log,ensure_task_tracking,TASK_STATUSES,)
 st.set_page_config(
     page_title="Personal AI Operations Agent",
@@ -25,6 +25,7 @@ initialize_database()
 
 st.title("🤖 Personal AI Operations Agent")
 st.write("Turn your goals into clear, prioritized action plans.")
+st.caption("LangGraph orchestrates planning and validation; external actions remain user-controlled.")
 st.divider()
 st.subheader("Create a new plan")
 
@@ -40,7 +41,9 @@ if st.button("✨ Generate Plan", type="primary"):
     else:
         with st.spinner("Your AI planner is creating a plan..."):
             try:
-                plan = create_plan(goal.strip())
+                workflow_result = run_planning_workflow(goal.strip())
+                plan = workflow_result["plan"]
+                plan["workflow_review_status"] = workflow_result.get("review_status", "needs_review")
                 plan_id = save_plan(goal.strip(), plan["tasks"])
                 if plan.get("validation_errors"):
                     st.error("The plan still contains scheduling conflicts.")
