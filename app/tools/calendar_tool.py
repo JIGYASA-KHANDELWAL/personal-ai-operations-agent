@@ -1,4 +1,4 @@
-
+import streamlit as st
 import os
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -23,14 +23,25 @@ def get_calendar_service():
         credentials = Credentials.from_authorized_user_file(
             str(TOKEN_FILE), SCOPES
         )
+    if not credentials:
+        try:
+            google_oauth=dict(st.secrets["google_oauth"])
+            credentials = Credentials.from_authorized_user_info(google_oauth, SCOPES)
+        except Exception:
+            credentials = None
 
     if credentials and credentials.expired and credentials.refresh_token:
         credentials.refresh(Request())
+        if TOKEN_FILE.exists():
+            TOKEN_FILE.write_text(credentials.to_json())
+            TOKEN_FILE.chmod(0o600)
 
     if not credentials or not credentials.valid:
         if not CREDENTIALS_FILE.exists():
             raise FileNotFoundError(
-                f"OAuth credentials not found: {CREDENTIALS_FILE}"
+                "Google OAuth credentials not found."
+                "Configure google_oauth in Streamlit secrets."
+                "or provide a credentials.json file for local development."
             )
 
         flow = InstalledAppFlow.from_client_secrets_file(
