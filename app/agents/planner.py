@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from database import initialize_database, save_plan
 from tools.calendar_tool import (
-    get_upcoming_events,
+    get_calendar_events_safe,
     calculate_free_gaps,
 )
 from app.agents.dependency_scheduler import (
@@ -343,8 +343,12 @@ def create_plan(goal):
         )
 
     # Fetch upcoming Google Calendar events.
-    events = get_upcoming_events(max_results=100)
-
+    events, calendar_connected = get_calendar_events_safe(max_results=100)
+    if not calendar_connected:
+        raise RuntimeError(
+        "Google Calendar is unavailable. Calendar-aware scheduling "
+        "cannot safely proceed without checking existing commitments."
+        )
     free_gaps = calculate_free_gaps(
         events,
         start_date=datetime.now().date(),

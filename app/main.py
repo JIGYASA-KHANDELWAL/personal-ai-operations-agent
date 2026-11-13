@@ -1,6 +1,6 @@
 from agents.email_assistant import draft_email
 from agents.document_generator import generate_document
-from tools.calendar_tool import get_upcoming_events
+from tools.calendar_tool import get_calendar_events_safe
 from io import BytesIO
 import streamlit as st
 import json
@@ -573,7 +573,12 @@ st.write("View your upcoming Google Calendar events.")
 if st.button("🔄 Refresh Calendar"):
     try:
         with st.spinner("Fetching your upcoming events..."):
-            events = get_upcoming_events(max_results=10)
+            events, calendar_connected = get_calendar_events_safe(max_results=10)
+            if not calendar_connected:
+                st.warning(
+                    "Google Calendar is not connected. "
+                    "Calendar events cannot be retrieved."
+                )
             st.session_state["calendar_events"] = events
             st.session_state["calendar_loaded"] = True
     except Exception as error:
@@ -582,7 +587,12 @@ if st.button("🔄 Refresh Calendar"):
 if "calendar_loaded" not in st.session_state:
     try:
         with st.spinner("Loading your calendar..."):
-            events = get_upcoming_events(max_results=10)
+            events, calendar_connected = get_calendar_events_safe(max_results=10)
+            if not calendar_connected:
+                st.warning(
+                    "Google Calendar is not connected. "
+                    "Calendar events cannot be retrieved."
+                )
             st.session_state["calendar_events"] = events
             st.session_state["calendar_loaded"] = True
     except Exception as error:
