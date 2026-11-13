@@ -345,35 +345,17 @@ def create_plan(goal):
     # Fetch upcoming Google Calendar events.
     events, calendar_connected = get_calendar_events_safe(max_results=100)
     if calendar_connected:
-        free_gaps = calculate_free_gaps(
-            events,
-            start_date=datetime.now().date(),
-            days=7,
-            day_start_hour=9,
-            day_end_hour=20,
-        )
         scheduling_mode = "calendar-aware"
     else:
-        free_gaps = calculate_free_gaps(
-            [],
+        scheduling_mode = "demo"
+    free_gaps = calculate_free_gaps(
+            events if calendar_connected else [],
             start_date=datetime.now().date(),
             days=7,
             day_start_hour=9,
             day_end_hour=20,
-        )
-        scheduling_mode = "demo"
-    if not calendar_connected:
-        raise RuntimeError(
-        "Google Calendar is unavailable. Calendar-aware scheduling "
-        "cannot safely proceed without checking existing commitments."
-        )
-    free_gaps = calculate_free_gaps(
-        events,
-        start_date=datetime.now().date(),
-        days=7,
-        day_start_hour=9,
-        day_end_hour=20,
     )
+      
 
     # Format candidate work windows.
     formatted_gaps = []
