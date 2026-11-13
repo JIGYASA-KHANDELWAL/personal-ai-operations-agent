@@ -43,7 +43,18 @@ if st.button("✨ Generate Plan", type="primary"):
             try:
                 workflow_result = run_planning_workflow(goal.strip())
                 plan = workflow_result["plan"]
-                plan["workflow_review_status"] = workflow_result.get("review_status", "needs_review")
+
+                plan["workflow_review_status"] = workflow_result.get(
+                    "review_status", "needs_review"
+                )
+
+                if plan.get("scheduling_mode") == "demo":
+                    st.warning(
+                        "Demo Mode: Google Calendar is not connected. "
+                        "Suggested task timings have not been verified "
+                        "against actual calendar commitments."
+                    )
+
                 plan_id = save_plan(goal.strip(), plan["tasks"])
                 if plan.get("validation_errors"):
                     st.error("The plan still contains scheduling conflicts.")
@@ -51,7 +62,14 @@ if st.button("✨ Generate Plan", type="primary"):
                         st.write(f"- {error}")
                     st.info("Review these tasks before relying on their suggested timings.")
                 else:
-                    st.success("All proposed task timings passed validation.")
+                    if plan.get("scheduling_mode") == "demo":
+                        st.info(
+                            "Task timings passed internal scheduling "
+                            "validation, but actual Google Calendar "
+                            "availability was not checked."
+                        )
+                    else:
+                        st.success("All proposed task timings passed validation.")
                 st.session_state["latest_plan"] = plan
                 st.session_state["latest_plan_id"] = plan_id
 

@@ -344,6 +344,24 @@ def create_plan(goal):
 
     # Fetch upcoming Google Calendar events.
     events, calendar_connected = get_calendar_events_safe(max_results=100)
+    if calendar_connected:
+        free_gaps = calculate_free_gaps(
+            events,
+            start_date=datetime.now().date(),
+            days=7,
+            day_start_hour=9,
+            day_end_hour=20,
+        )
+        scheduling_mode = "calendar-aware"
+    else:
+        free_gaps = calculate_free_gaps(
+            [],
+            start_date=datetime.now().date(),
+            days=7,
+            day_start_hour=9,
+            day_end_hour=20,
+        )
+        scheduling_mode = "demo"
     if not calendar_connected:
         raise RuntimeError(
         "Google Calendar is unavailable. Calendar-aware scheduling "
@@ -417,19 +435,30 @@ def create_plan(goal):
         if formatted_events
         else "No upcoming calendar events were found."
     )
-
+    scheduling_context = (
+        "Google Calendar is connected. Proposed timings must avoid "
+        "existing calendar commitments."
+        if calendar_connected
+        else
+        "DEMO MODE: Google Calendar is not connected. Candidate work "
+        "windows are hypothetical. Suggested task timings are "
+        "UNVERIFIED and may conflict with actual commitments. "
+        "Do not claim calendar availability has been checked."
+    )
     # Ask Gemini to create a plan.
     prompt = f"""
 Create a practical action plan for this goal:
 {goal}
 
+SCHEDULING MODE:
+{scheduling_context}
 UPCOMING GOOGLE CALENDAR EVENTS:
 {calendar_context}
 
 CANDIDATE WORK WINDOWS:
 {gaps_context}
 
-CALENDAR-AWARE SCHEDULING RULES:
+SCHEDULING RULES:
 - Treat calendar event start and end times as occupied periods.
 - Never overlap a calendar commitment.
 - Use only the candidate work windows supplied above.
@@ -500,7 +529,15 @@ Return only a valid JSON object with this structure:
         )
 
     tasks = plan["tasks"]
+    plan["scheduling_mode"] = scheduling_mode
+    plan["calendar_verified"] = calendar_connected
 
+    if not calendar_connected:
+        plan["scheduling_notice"] = (
+            "Demo Mode: Suggested task timings use hypothetical "
+            "planning windows and have not been checked against "
+            "Google Calendar commitments."
+        )
     # Validate dependency names and circular dependencies.
     dependency_errors = validate_dependencies(tasks)
 
