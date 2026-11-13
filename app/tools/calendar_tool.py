@@ -74,7 +74,13 @@ def get_upcoming_events(max_results=100):
 
     return result.get("items", [])
 
-
+def get_calendar_events_safe(max_results=100):
+    try:
+        events = get_upcoming_events(max_results=max_results)
+        return events, True
+    except Exception as error:
+        print(f"Google Calendar unavailable: {error}")
+        return [], False
 
 
 def calculate_free_gaps(
