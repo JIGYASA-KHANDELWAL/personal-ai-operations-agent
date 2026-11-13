@@ -1,4 +1,4 @@
-
+import streamlit as st
 import os
 import json
 import sys
@@ -22,11 +22,25 @@ from app.agents.dependency_scheduler import (
 
 load_dotenv()
 
-# Allow importing this module when no Gemini API key is configured.
-api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key) if api_key else None
-
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
+
+def get_gemini_client():
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        try:
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            api_key = None
+
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is missing. Configure it in your "
+            ".env file or Streamlit Cloud secrets."
+        )
+
+    return genai.Client(api_key=api_key)
 
 
 def validate_task_timings(tasks, candidate_windows, events):
@@ -320,6 +334,8 @@ def calculate_priority_scores(tasks, now=None):
 def create_plan(goal):
     """Generate, schedule, validate, and score an action plan."""
 
+    client = get_gemini_client()
+
     if client is None:
         raise RuntimeError(
             "GEMINI_API_KEY is missing. Add it to your .env file "
@@ -456,6 +472,7 @@ Return only a valid JSON object with this structure:
   ]
 }}
 """
+    client = get_gemini_client()
 
     response = client.models.generate_content(
         model=MODEL,

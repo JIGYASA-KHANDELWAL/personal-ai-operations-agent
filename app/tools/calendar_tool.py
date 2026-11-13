@@ -1,7 +1,8 @@
 
 import os
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, time, timezone, timedelta
+from dateutil import tz
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -93,38 +94,40 @@ def calculate_free_gaps(
         start_value = start.get("dateTime")
         end_value = end.get("dateTime")
 
-        # Skip all-day events for now.
-                # Handle Google Calendar all-day events.
-        if not start_value and not end_value:
+        if start_value and end_value:
+            try:
+                event_start = datetime.fromisoformat(
+                    start_value.replace("Z", "+00:00")
+                )
+                event_end = datetime.fromisoformat(
+                    end_value.replace("Z", "+00:00")
+                )
+
+                if event_end > event_start:
+                    parsed_events.append((event_start, event_end))
+
+            except (ValueError, TypeError, AttributeError):
+                continue
+
+        elif start.get("date") and end.get("date"):
             try:
                 all_day_start = date.fromisoformat(start["date"])
                 all_day_end = date.fromisoformat(end["date"])
 
                 if all_day_end > all_day_start:
+                    local_tz = datetime.now().astimezone().tzinfo
+
                     parsed_events.append((
                         datetime.combine(
-                            all_day_start, time.min,
-                            tzinfo=datetime.now().astimezone().tzinfo,
+                            all_day_start, time.min, tzinfo=local_tz
                         ),
                         datetime.combine(
-                            all_day_end, time.min,
-                            tzinfo=datetime.now().astimezone().tzinfo,
+                            all_day_end, time.min, tzinfo=local_tz
                         ),
                     ))
-            except (KeyError, TypeError, ValueError):
+
+            except (ValueError, TypeError, KeyError):
                 continue
-            continue
-
-        if not start_value or not end_value:
-            continue
-
-    # Use the first event's timezone, or the local timezone
-    # if the calendar contains no timed events.
-    if parsed_events:
-        tz = parsed_events[0][0].tzinfo
-    else:
-        tz = datetime.now().astimezone().tzinfo
-
     # Normalize event times to the same timezone.
     parsed_events = [
         (start.astimezone(tz), end.astimezone(tz))
