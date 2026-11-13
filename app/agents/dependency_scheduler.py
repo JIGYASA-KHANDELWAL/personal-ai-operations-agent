@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-
+TRANSITION_BUFFER_MINUTES = 10
 def validate_dependencies(tasks: list[dict[str, Any]]) -> list[str]:
     """Validate task names, dependencies, missing references, and cycles."""
     errors = []
@@ -225,6 +225,7 @@ def schedule_tasks_by_dependencies(
 
         earliest_start = (
             max(scheduled_end[dependency] for dependency in dependencies)
+            + timedelta(minutes=TRANSITION_BUFFER_MINUTES)
             if dependencies
             else None
         )

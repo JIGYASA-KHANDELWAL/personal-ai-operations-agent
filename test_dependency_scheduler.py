@@ -62,6 +62,14 @@ assert (
 )
 
 assert (
+    datetime.fromisoformat(
+        by_name["Prepare posters"]["suggested_start"]
+    )
+    >= datetime.fromisoformat(
+        by_name["Finalize venue"]["suggested_end"]
+    ) + timedelta(minutes=10)
+)
+assert (
     datetime.fromisoformat(by_name["Publish announcement"]["suggested_start"])
     >= datetime.fromisoformat(by_name["Prepare posters"]["suggested_end"])
 )

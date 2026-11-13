@@ -1,4 +1,4 @@
-import streamlit as st
+
 import os
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -23,25 +23,14 @@ def get_calendar_service():
         credentials = Credentials.from_authorized_user_file(
             str(TOKEN_FILE), SCOPES
         )
-    if not credentials:
-        try:
-            google_oauth=dict(st.secrets["google_oauth"])
-            credentials = Credentials.from_authorized_user_info(google_oauth, SCOPES)
-        except Exception:
-            credentials = None
 
     if credentials and credentials.expired and credentials.refresh_token:
         credentials.refresh(Request())
-        if TOKEN_FILE.exists():
-            TOKEN_FILE.write_text(credentials.to_json())
-            TOKEN_FILE.chmod(0o600)
 
     if not credentials or not credentials.valid:
         if not CREDENTIALS_FILE.exists():
             raise FileNotFoundError(
-                "Google OAuth credentials not found."
-                "Configure google_oauth in Streamlit secrets."
-                "or provide a credentials.json file for local development."
+                f"OAuth credentials not found: {CREDENTIALS_FILE}"
             )
 
         flow = InstalledAppFlow.from_client_secrets_file(
@@ -105,21 +94,29 @@ def calculate_free_gaps(
         end_value = end.get("dateTime")
 
         # Skip all-day events for now.
+                # Handle Google Calendar all-day events.
+        if not start_value and not end_value:
+            try:
+                all_day_start = date.fromisoformat(start["date"])
+                all_day_end = date.fromisoformat(end["date"])
+
+                if all_day_end > all_day_start:
+                    parsed_events.append((
+                        datetime.combine(
+                            all_day_start, time.min,
+                            tzinfo=datetime.now().astimezone().tzinfo,
+                        ),
+                        datetime.combine(
+                            all_day_end, time.min,
+                            tzinfo=datetime.now().astimezone().tzinfo,
+                        ),
+                    ))
+            except (KeyError, TypeError, ValueError):
+                continue
+            continue
+
         if not start_value or not end_value:
             continue
-
-        try:
-            start_dt = datetime.fromisoformat(
-                start_value.replace("Z", "+00:00")
-            )
-            end_dt = datetime.fromisoformat(
-                end_value.replace("Z", "+00:00")
-            )
-        except ValueError:
-            continue
-
-        if end_dt > start_dt:
-            parsed_events.append((start_dt, end_dt))
 
     # Use the first event's timezone, or the local timezone
     # if the calendar contains no timed events.
@@ -149,7 +146,10 @@ def calculate_free_gaps(
             time(day_end_hour, 0),
             tzinfo=tz,
         )
-
+                # Do not offer time slots that have already passed today.
+        now = datetime.now(tz)
+        if current_date == now.date():
+            day_start = max(day_start, now)
         day_events = []
 
         for start_dt, end_dt in parsed_events:

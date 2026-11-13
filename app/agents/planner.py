@@ -3,8 +3,7 @@ import os
 import json
 import sys
 from pathlib import Path
-from datetime import datetime
-
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from google import genai
 
@@ -90,18 +89,10 @@ def validate_task_timings(tasks, candidate_windows, events):
                 f"Task {index}: duration must be a positive integer."
             )
             continue
-
-        # Both times may be null if the task cannot be scheduled.
         if not start or not end:
-            if (
-                task.get("suggested_start") is None
-                and task.get("suggested_end") is None
-            ):
-                continue
-
             errors.append(
-                f"Task {index}: start/end must be valid "
-                "timezone-aware timestamps."
+                f"Task {index}: task is unscheduled or has invalid "
+                "start/end timestamps."
             )
             continue
 
@@ -152,7 +143,61 @@ def validate_task_timings(tasks, candidate_windows, events):
                 errors.append(
                     f"Tasks {index_a} and {index_b} overlap."
                 )
+        # Validate dependencies and their transition buffers.
+    task_by_name = {
+        task.get("task", "").strip(): task
+        for task in tasks
+        if task.get("task")
+    }
 
+    dependency_errors = validate_dependencies(tasks)
+    errors.extend(dependency_errors)
+
+    if not dependency_errors:
+        for task in tasks:
+            name = task.get("task", "").strip()
+            start = parse_time(task.get("suggested_start"))
+
+            for dependency in task.get("depends_on", []) or []:
+                prerequisite = task_by_name.get(dependency)
+
+                if not prerequisite:
+                    continue
+
+                prerequisite_end = parse_time(
+                    prerequisite.get("suggested_end")
+                )
+
+                if start and prerequisite_end:
+                    earliest_allowed = prerequisite_end + timedelta(
+                        minutes=10
+                    )
+
+                    if start < earliest_allowed:
+                        errors.append(
+                            f"Task '{name}' starts before the 10-minute "
+                            f"buffer after dependency '{dependency}'."
+                        )
+
+    # Validate task deadlines.
+    for index, task in enumerate(tasks, start=1):
+        deadline_value = task.get("deadline")
+
+        if not deadline_value:
+            continue
+
+        deadline = parse_time(deadline_value)
+        end = parse_time(task.get("suggested_end"))
+
+        if deadline is None:
+            errors.append(
+                f"Task {index}: deadline must be a valid "
+                "timezone-aware timestamp."
+            )
+        elif end and end > deadline:
+            errors.append(
+                f"Task {index}: scheduled completion is after its deadline."
+            )
     return errors
 
 
