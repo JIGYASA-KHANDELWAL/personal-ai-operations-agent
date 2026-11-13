@@ -1,8 +1,7 @@
-
+import streamlit as st
 import os
 from pathlib import Path
 from datetime import datetime, time, timezone, timedelta
-from dateutil import tz
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -25,13 +24,24 @@ def get_calendar_service():
             str(TOKEN_FILE), SCOPES
         )
 
+    if credentials is None:
+        try:
+            token_info = st.secrets.get("GOOGLE_CALENDAR_TOKEN")
+            if token_info:
+                credentials = Credentials.from_authorized_user_info(
+                    dict(token_info), SCOPES
+                )
+        except Exception:
+            pass
+
     if credentials and credentials.expired and credentials.refresh_token:
         credentials.refresh(Request())
 
     if not credentials or not credentials.valid:
         if not CREDENTIALS_FILE.exists():
-            raise FileNotFoundError(
-                f"OAuth credentials not found: {CREDENTIALS_FILE}"
+            raise RuntimeError(
+                "Google Calendar is not connected. "
+                "Configure GOOGLE_CALENDAR_TOKEN in Streamlit secrets."
             )
 
         flow = InstalledAppFlow.from_client_secrets_file(
@@ -79,7 +89,7 @@ def calculate_free_gaps(
     subtracting timed calendar commitments.
     """
     from datetime import date, datetime, time, timedelta, timezone
-
+    local_tz = datetime.now().astimezone().tzinfo
     if start_date is None:
         start_date = datetime.now().date()
     elif isinstance(start_date, datetime):
@@ -130,7 +140,7 @@ def calculate_free_gaps(
                 continue
     # Normalize event times to the same timezone.
     parsed_events = [
-        (start.astimezone(tz), end.astimezone(tz))
+        (start.astimezone(local_tz), end.astimezone(local_tz))
         for start, end in parsed_events
     ]
 
@@ -142,15 +152,15 @@ def calculate_free_gaps(
         day_start = datetime.combine(
             current_date,
             time(day_start_hour, 0),
-            tzinfo=tz,
+            tzinfo=local_tz,
         )
         day_end = datetime.combine(
             current_date,
             time(day_end_hour, 0),
-            tzinfo=tz,
+            tzinfo=local_tz,
         )
                 # Do not offer time slots that have already passed today.
-        now = datetime.now(tz)
+        now = datetime.now(local_tz)
         if current_date == now.date():
             day_start = max(day_start, now)
         day_events = []
