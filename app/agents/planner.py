@@ -15,7 +15,7 @@ from tools.calendar_tool import (
     get_calendar_events_safe,
     calculate_free_gaps,
 )
-from app.agents.dependency_scheduler import (
+from agents.dependency_scheduler import (
     schedule_tasks_by_dependencies,
     validate_dependencies,
 )
